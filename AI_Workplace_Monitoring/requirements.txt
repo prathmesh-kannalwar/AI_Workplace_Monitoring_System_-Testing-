@@ -1,0 +1,7 @@
+ultralytics
+deep-sort-realtime
+opencv-python
+numpy==1.26.4
+torch
+torchvision
+torchaudio
