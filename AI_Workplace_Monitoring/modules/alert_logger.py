@@ -7,15 +7,15 @@ import logging
 from datetime import datetime
 from typing import Dict, Tuple
 
-# Configure logging
+# Configure logging  
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class AlertPriority:
     """Alert priority levels"""
-    HIGH = "HIGH"
-    MEDIUM = "MEDIUM"
-    LOW = "LOW"
+    HIGH = "HIGH_PRIORITY"
+    MEDIUM = "MEDIUM_PRIORITY"
+    LOW = "LOW_PRIORITY"
 
     PRIORITY_MAP = {
         "CROWD_DETECTED": HIGH,
