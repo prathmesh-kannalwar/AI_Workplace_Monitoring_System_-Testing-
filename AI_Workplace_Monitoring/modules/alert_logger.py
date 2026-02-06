@@ -3,6 +3,8 @@ import threading
 import queue
 import hashlib
 import json
+import csv
+import os
 import logging
 from datetime import datetime
 from typing import Dict, Tuple
@@ -78,11 +80,20 @@ class AlertDeduplicator:
 class AlertLogger:
     """Lightweight alert logging system"""
 
-    def __init__(self):
+    def __init__(self, log_dir: str = "logs"):
         self.deduplicator = AlertDeduplicator()
         self.alert_queue = queue.Queue(maxsize=100)
         self.running = False
         self.worker_thread = None
+        self.log_dir = log_dir
+        
+        # Create logs directory
+        os.makedirs(log_dir, exist_ok=True)
+        self.alert_csv_file = f"{log_dir}/alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        self.csv_lock = threading.Lock()
+        
+        # Initialize CSV file with headers
+        self._initialize_csv_file()
 
         # Statistics
         self.stats = {
@@ -149,13 +160,45 @@ class AlertLogger:
                 print(f"[{timestamp}] {priority} ALERT: {alert.get('type')} "
                       f"(Person {alert.get('person_id', 'N/A')}) - Occurrence #{occurrence_count}")
 
-                # Log to console/file
+                # Log to console and CSV file
                 logger.info(f"{priority} ALERT: {json.dumps(alert)}")
+                self._save_alert_to_csv(alert, priority, occurrence_count)
 
             except queue.Empty:
                 continue
             except Exception as e:
                 logger.error(f"Error processing alert: {e}")
+
+    def _initialize_csv_file(self):
+        """Initialize CSV file with headers"""
+        try:
+            with open(self.alert_csv_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    'Timestamp', 'Priority', 'Alert Type', 'Person ID', 
+                    'Duration', 'Count', 'Occurrence', 'Saved At'
+                ])
+        except Exception as e:
+            logger.error(f"Error initializing CSV file: {e}")
+    
+    def _save_alert_to_csv(self, alert: Dict, priority: str, occurrence_count: int):
+        """Save alert to CSV file"""
+        try:
+            with self.csv_lock:
+                with open(self.alert_csv_file, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
+                        datetime.fromtimestamp(alert.get('timestamp', time.time())).strftime('%Y-%m-%d %H:%M:%S'),
+                        priority,
+                        alert.get('type', ''),
+                        alert.get('person_id', ''),
+                        alert.get('duration', ''),
+                        alert.get('count', ''),
+                        occurrence_count,
+                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    ])
+        except Exception as e:
+            logger.error(f"Error saving alert to CSV: {e}")
 
     def get_statistics(self) -> Dict:
         """Get alert statistics"""
