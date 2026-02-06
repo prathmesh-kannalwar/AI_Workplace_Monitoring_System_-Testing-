@@ -22,8 +22,6 @@ def analyse_behaviour(tracked_people):
     Output:
         List of alert dictionaries
     """
-
-    current_time = time.time()
     alerts = []
     centers = []
 
