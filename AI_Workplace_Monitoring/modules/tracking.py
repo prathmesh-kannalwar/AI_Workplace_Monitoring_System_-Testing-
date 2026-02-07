@@ -1,100 +1,146 @@
-import cv2
 import time
-from deep_sort_realtime.deepsort_tracker import DeepSort
+import numpy as np
 
-# -------------------------------
-# Initialize DeepSORT tracker
-# -------------------------------
-tracker = DeepSort(max_age=30)
 
-# -------------------------------
-# Camera (only to get frames)
-# -------------------------------
-cap = cv2.VideoCapture(0)
+class PeopleTracker:
+    def _init_(self, iou_threshold=0.3, max_missing=30):
+        """
+        iou_threshold → Minimum IOU to match detections
+        max_missing → Frames allowed before object is removed
+        """
+        self.next_id = 1
+        self.tracks = {}
+        self.iou_threshold = iou_threshold
+        self.max_missing = max_missing
 
-# Used to simulate changing detection input
-x_offset = 0
+    # ---------------------------
+    # Utility: Calculate IOU
+    # ---------------------------
+    def _iou(self, boxA, boxB):
+        xA = max(boxA[0], boxB[0])
+        yA = max(boxA[1], boxB[1])
+        xB = min(boxA[2], boxB[2])
+        yB = min(boxA[3], boxB[3])
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+        inter_area = max(0, xB - xA) * max(0, yB - yA)
 
-    h, w, _ = frame.shape
-    x_offset = (x_offset + 4) % (w - 200)
+        boxA_area = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+        boxB_area = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
 
-    # ----------------------------------
-    # INPUT FROM DETECTION TEAM
-    # (Must change every frame to track)
-    # Format: [x, y, width, height, confidence]
-    # ----------------------------------
-    detections_from_team = [
-        [100 + x_offset, 80, 60, 150, 0.92],
-        [300 - x_offset // 2, 90, 70, 160, 0.88]
-    ]
+        union = boxA_area + boxB_area - inter_area
 
-    # ----------------------------------
-    # Convert to DeepSORT format
-    # ----------------------------------
-    tracker_inputs = []
-    for d in detections_from_team:
-        x, y, w_box, h_box, conf = d
-        tracker_inputs.append(([x, y, w_box, h_box], conf, "person"))
+        if union == 0:
+            return 0
 
-    # ----------------------------------
-    # Run DeepSORT tracking
-    # ----------------------------------
-    tracks = tracker.update_tracks(tracker_inputs, frame=frame)
+        return inter_area / union
 
-    # ----------------------------------
-    # FINAL TRACKING OUTPUT
-    # ----------------------------------
-    tracked_output = []
-
-    for track in tracks:
-        if not track.is_confirmed():
-            continue
-
-        track_id = track.track_id
-        x1, y1, x2, y2 = map(int, track.to_ltrb())
-
+    # ---------------------------
+    # Utility: Calculate Center
+    # ---------------------------
+    def _center(self, bbox):
+        x1, y1, x2, y2 = bbox
         cx = int((x1 + x2) / 2)
         cy = int((y1 + y2) / 2)
+        return (cx, cy)
 
-        tracked_output.append({
-            "track_id": track_id,
-            "bbox": [x1, y1, x2, y2],
-            "center": [cx, cy],
-            "confidence": track.det_conf,
-            "timestamp": time.time()
-        })
+    # ---------------------------
+    # Main Tracking Function
+    # ---------------------------
+    def update(self, detections):
+        """
+        Input → detection module output
+        Output → tracked_objects list
+        """
 
-        # ----------------------------------
-        # Visualization
-        # ----------------------------------
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(
-            frame,
-            f"ID {track_id}",
-            (x1, y1 - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 0),
-            2
-        )
+        current_time = time.time()
+        updated_tracks = {}
 
-    # ----------------------------------
-    # Print output (for integration)
-    # ----------------------------------
-    print(tracked_output)
+        # Keep track of matched track IDs
+        matched_ids = set()
 
-    cv2.imshow("Person Tracking Module", frame)
+        # Convert detections into easier format
+        det_boxes = [det["bbox"] for det in detections]
 
-    if cv2.waitKey(1) & 0xFF == 27:  # ESC
-        break
+        # ---------------------------
+        # Match existing tracks
+        # ---------------------------
+        for track_id, track_data in self.tracks.items():
 
-# -------------------------------
-# Cleanup
-# -------------------------------
-cap.release()
-cv2.destroyAllWindows()
+            best_iou = 0
+            best_det_index = -1
+
+            for i, det in enumerate(det_boxes):
+
+                if i in matched_ids:
+                    continue
+
+                iou_score = self._iou(track_data["bbox"], det)
+
+                if iou_score > best_iou:
+                    best_iou = iou_score
+                    best_det_index = i
+
+            # If matched detection found
+            if best_iou > self.iou_threshold and best_det_index != -1:
+
+                det = detections[best_det_index]
+                bbox = det["bbox"]
+
+                updated_tracks[track_id] = {
+                    "id": track_id,
+                    "bbox": bbox,
+                    "confidence": det["confidence"],
+                    "center": self._center(bbox),
+                    "timestamp": current_time,
+                    "missing": 0
+                }
+
+                matched_ids.add(best_det_index)
+
+            else:
+                # Increase missing counter
+                track_data["missing"] += 1
+
+                if track_data["missing"] <= self.max_missing:
+                    updated_tracks[track_id] = track_data
+
+        # ---------------------------
+        # Add New Tracks
+        # ---------------------------
+        for i, det in enumerate(detections):
+
+            if i in matched_ids:
+                continue
+
+            bbox = det["bbox"]
+
+            updated_tracks[self.next_id] = {
+                "id": self.next_id,
+                "bbox": bbox,
+                "confidence": det["confidence"],
+                "center": self._center(bbox),
+                "timestamp": current_time,
+                "missing": 0
+            }
+
+            self.next_id += 1
+
+        # Update tracker state
+        self.tracks = updated_tracks
+
+        # ---------------------------
+        # Prepare Output Format
+        # ---------------------------
+        tracked_objects = []
+
+        for track in self.tracks.values():
+
+            tracked_objects.append({
+                "id": track["id"],
+                "bbox": track["bbox"],
+                "confidence": track["confidence"],
+                "center": track["center"],
+                "timestamp": track["timestamp"]
+            })
+
+        return tracked_objects
