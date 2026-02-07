@@ -10,7 +10,7 @@ class PeopleDetector:
     def __init__(self, model_path="yolov8n.pt", conf_threshold=0.5, resize_width=None):
 
         # Select device
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cpu"
 
         self.model = YOLO(model_path)
         self.model.to(self.device)
@@ -33,16 +33,27 @@ class PeopleDetector:
 
     def detect_people(self, frame):
 
-        if frame is None:
+        # Safety check
+        if frame is None or frame.size == 0:
             return []
 
         frame = self.preprocess(frame)
 
-        results = self.model(frame, verbose=False)
+        if frame is None or frame.size == 0:
+            return []
+
+        try:
+            results = self.model(frame, verbose=False)
+        except Exception as e:
+            print("YOLO Inference Error:", e)
+            return []
 
         detections = []
 
         for result in results:
+            if result.boxes is None:
+                continue
+
             for box in result.boxes:
 
                 class_id = int(box.cls[0])
@@ -61,3 +72,4 @@ class PeopleDetector:
                     })
 
         return detections
+

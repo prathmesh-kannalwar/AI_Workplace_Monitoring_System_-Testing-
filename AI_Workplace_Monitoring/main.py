@@ -14,7 +14,7 @@ def main():
     # Initialize modules
     # -----------------------------
     video = VideoStream(0)  # Webcam
-    detector = PeopleDetector(model_path="yolov8n.pt", conf_threshold=0.5, resize_width=640)
+    detector = PeopleDetector(model_path="yolov8n.pt", conf_threshold=0.5, resize_width=416)
     tracker = PeopleTracker(iou_threshold=0.3, max_missing=30)
     alert_logger = AlertLogger()
     alert_logger.start()
@@ -54,16 +54,8 @@ def main():
         for alert in alerts:
             alert_logger.log_alert(alert)
 
-        # 4️⃣ Restricted Area Check
-        # Convert tracked_objects to dict for RestrictedAreaChecker
-        tracked_dict = {
-            obj["id"]: {
-                "centroid": obj["center"],
-                "bbox": obj["bbox"]
-            } for obj in tracked_objects
-        }
+        restricted_alerts = restricted_checker.check_restricted_area(tracked_objects)
 
-        restricted_alerts = restricted_checker.check_restricted_area(tracked_dict.values())
         for alert in restricted_alerts:
             alert_logger.log_alert(alert)
 
@@ -79,6 +71,7 @@ def main():
         frame_vis = restricted_checker.draw_areas(frame_vis)
         cv2.imshow("Workplace Monitor", frame_vis)
 
+        time.sleep(0.01)
         # Press 'q' to quit
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
