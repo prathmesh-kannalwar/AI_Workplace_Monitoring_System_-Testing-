@@ -63,7 +63,7 @@ def main():
             } for obj in tracked_objects
         }
 
-        restricted_alerts = restricted_checker.check_restricted_area(tracked_dict)
+        restricted_alerts = restricted_checker.check_restricted_area(tracked_dict.values())
         for alert in restricted_alerts:
             alert_logger.log_alert(alert)
 
@@ -93,3 +93,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
