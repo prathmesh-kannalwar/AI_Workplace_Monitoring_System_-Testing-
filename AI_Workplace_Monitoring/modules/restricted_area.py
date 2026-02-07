@@ -12,39 +12,43 @@ class RestrictedAreaChecker:
         self._create_default_areas()
 
     def _create_default_areas(self):
-        # Area 1: Bottom-right
-        area1_points = np.array([
-            [self.frame_width * 0.7, self.frame_height * 0.6],
-            [self.frame_width, self.frame_height * 0.6],
-            [self.frame_width, self.frame_height],
-            [self.frame_width * 0.7, self.frame_height]
-        ], dtype=np.int32)
 
-        self.restricted_areas.append({
-            'name': 'Equipment Zone',
-            'points': area1_points,
-            'max_people': 1
-        })
-
-        # Area 2: Top-right
-        area2_points = np.array([
-            [self.frame_width * 0.7, 0],
-            [self.frame_width, 0],
-            [self.frame_width, self.frame_height * 0.3],
-            [self.frame_width * 0.7, self.frame_height * 0.3]
+        # -----------------------------
+        # Server Room (LEFT - Full Height)
+        # -----------------------------
+        server_points = np.array([
+            [0, 0],
+            [self.frame_width * 0.33, 0],
+            [self.frame_width * 0.33, self.frame_height],
+            [0, self.frame_height]
         ], dtype=np.int32)
 
         self.restricted_areas.append({
             'name': 'Server Room',
-            'points': area2_points,
+            'points': server_points,
             'max_people': 0
+        })
+
+        # -----------------------------
+        # Equipment Zone (RIGHT - Full Height)
+        # -----------------------------
+        equipment_points = np.array([
+            [self.frame_width * 0.67, 0],
+            [self.frame_width, 0],
+            [self.frame_width, self.frame_height],
+            [self.frame_width * 0.67, self.frame_height]
+        ], dtype=np.int32)
+
+        self.restricted_areas.append({
+            'name': 'Equipment Zone',
+            'points': equipment_points,
+            'max_people': 1
         })
 
     def point_in_polygon(self, point, polygon_points):
         x, y = point
         return cv2.pointPolygonTest(polygon_points, (float(x), float(y)), False) >= 0
 
-    # ✅ THIS METHOD MUST BE INSIDE THE CLASS
     def check_restricted_area(self, tracked_people):
         alerts = []
 
@@ -72,13 +76,37 @@ class RestrictedAreaChecker:
         return alerts
 
     def draw_areas(self, frame):
+
+        overlay = frame.copy()
+
         for area in self.restricted_areas:
             points = area['points']
             name = area['name']
+
+            # Transparent fill
+            cv2.fillPoly(overlay, [points], (0, 0, 255))
+
+            # Border
             cv2.polylines(frame, [points], True, (0, 0, 255), 2)
+
             centroid = points.mean(axis=0).astype(int)
+
             cv2.putText(frame, name, tuple(centroid),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        # Blend overlay
+        alpha = 0.2
+        frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+
+        return frame
+
+    def draw_centroids(self, frame, tracked_people):
+        """DEBUG: Shows tracked centers"""
+
+        for person in tracked_people:
+            cx, cy = person["center"]
+            cv2.circle(frame, (int(cx), int(cy)), 5, (255, 0, 0), -1)
+
         return frame
 
     def reset_frame_alerts(self):

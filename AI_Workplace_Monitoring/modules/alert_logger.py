@@ -46,12 +46,18 @@ PRIORITY_LIMITS = {
 
 
 class AlertDeduplicator:
-    """Prevents alert spam"""
+    """Prevents alert spam with cooldown support"""
 
     def __init__(self, time_window: int = 30):
         self.time_window = time_window
         self.alert_cache = {}
+        self.cooldown_cache = {}
         self.lock = threading.Lock()
+
+        # Cooldown periods (seconds)
+        self.cooldowns = {
+            "CROWD_DETECTED": 30   # Crowd alert only once every 30 sec
+        }
 
     def _generate_hash(self, alert: Dict) -> str:
         hash_data = {
@@ -64,9 +70,22 @@ class AlertDeduplicator:
     def should_process_alert(self, alert: Dict) -> Tuple[bool, int]:
         with self.lock:
             current_time = time.time()
+            alert_type = alert.get("type", "")
             alert_hash = self._generate_hash(alert)
 
-            # Remove expired cache entries
+            # ---------- COOLDOWN LOGIC ----------
+            if alert_type in self.cooldowns:
+                cooldown_time = self.cooldowns[alert_type]
+
+                last_trigger = self.cooldown_cache.get(alert_type, 0)
+
+                if current_time - last_trigger < cooldown_time:
+                    return False, 0
+
+                self.cooldown_cache[alert_type] = current_time
+                return True, 1
+
+            # ---------- NORMAL DEDUP LOGIC ----------
             expired = [
                 k for k, (t, _) in self.alert_cache.items()
                 if current_time - t > self.time_window * 2
@@ -81,7 +100,7 @@ class AlertDeduplicator:
                     new_count = count + 1
                     self.alert_cache[alert_hash] = (current_time, new_count)
 
-                    priority = AlertPriority.get_priority(alert.get("type", ""))
+                    priority = AlertPriority.get_priority(alert_type)
                     max_count = PRIORITY_LIMITS.get(priority, 3)
 
                     return new_count <= max_count, new_count
@@ -93,6 +112,7 @@ class AlertDeduplicator:
             else:
                 self.alert_cache[alert_hash] = (current_time, 1)
                 return True, 1
+
 
 
 class AlertLogger:

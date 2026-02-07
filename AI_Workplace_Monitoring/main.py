@@ -14,11 +14,16 @@ def main():
     # Initialize modules
     # -----------------------------
     video = VideoStream(0)  # Webcam
-    detector = PeopleDetector(model_path="yolov8n.pt", conf_threshold=0.5, resize_width=416)
+    detector = PeopleDetector(
+    model_path="yolov8n.pt",
+    conf_threshold=0.5,
+    resize_width=None
+)
     tracker = PeopleTracker(iou_threshold=0.3, max_missing=30)
     alert_logger = AlertLogger()
     alert_logger.start()
-
+    cv2.namedWindow("Workplace Monitor", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Workplace Monitor", 1000, 700)
     # Read first frame to initialize restricted area checker
     ret, frame = video.get_frame()
     if not ret:
