@@ -142,7 +142,13 @@ class AlertLogger:
 
                 # Get priority
                 priority = AlertPriority.get_priority(alert.get('type', ''))
-                self.stats[f"{priority.lower()}_priority"] += 1
+                if priority == AlertPriority.HIGH:
+                    self.stats["high_priority"] += 1
+                elif priority == AlertPriority.MEDIUM:
+                    self.stats["medium_priority"] += 1
+                else:
+                    self.stats["low_priority"] += 1
+
 
                 # Real-time notification
                 timestamp = datetime.fromtimestamp(alert['timestamp']).strftime('%H:%M:%S')
