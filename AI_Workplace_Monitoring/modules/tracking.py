@@ -3,7 +3,7 @@ import numpy as np
 
 
 class PeopleTracker:
-    def _init_(self, iou_threshold=0.3, max_missing=30):
+    def __init__(self, iou_threshold=0.3, max_missing=30):
         """
         iou_threshold → Minimum IOU to match detections
         max_missing → Frames allowed before object is removed
