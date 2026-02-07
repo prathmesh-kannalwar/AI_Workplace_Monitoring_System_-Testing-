@@ -1,11 +1,11 @@
 import time
 import math
 
-IDLE_TIME_THRESHOLD = 3         
-SUSPICIOUS_TIME_THRESHOLD = 6   
-MOVEMENT_THRESHOLD = 5        
-CROWD_DISTANCE_THRESHOLD = 50    
-CROWD_COUNT_THRESHOLD = 3        
+IDLE_TIME_THRESHOLD = 3
+SUSPICIOUS_TIME_THRESHOLD = 6
+MOVEMENT_THRESHOLD = 5
+CROWD_DISTANCE_THRESHOLD = 50
+CROWD_COUNT_THRESHOLD = 3
 
 person_history = {}
 
@@ -13,13 +13,12 @@ def distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 def analyse_behaviour(tracked_people):
-
     alerts = []
     centers = []
 
     active_ids = {p["id"] for p in tracked_people}
 
-    # Cleanup old history
+    # Remove disappeared people
     for pid in list(person_history.keys()):
         if pid not in active_ids:
             del person_history[pid]
@@ -62,7 +61,7 @@ def analyse_behaviour(tracked_people):
                 "duration": round(total_time, 2)
             })
 
-    # Crowd Detection
+    # Crowd detection
     close_count = 0
     for i in range(len(centers)):
         for j in range(i + 1, len(centers)):
@@ -76,6 +75,8 @@ def analyse_behaviour(tracked_people):
         })
 
     return alerts
+
+
 
 if __name__ == "__main__":
     import time
