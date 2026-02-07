@@ -13,17 +13,16 @@ def distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 def analyse_behaviour(tracked_people):
-    """
-    Input:
-        tracked_people = [
-            {"id": int, "center": (x, y),"timestamp": float}
-        ]
 
-    Output:
-        List of alert dictionaries
-    """
     alerts = []
     centers = []
+
+    active_ids = {p["id"] for p in tracked_people}
+
+    # Cleanup old history
+    for pid in list(person_history.keys()):
+        if pid not in active_ids:
+            del person_history[pid]
 
     for person in tracked_people:
         pid = person["id"]
@@ -31,7 +30,6 @@ def analyse_behaviour(tracked_people):
         current_time = person["timestamp"]
         centers.append(center)
 
-        # First time seeing this person
         if pid not in person_history:
             person_history[pid] = {
                 "last_position": center,
@@ -43,7 +41,6 @@ def analyse_behaviour(tracked_people):
         prev_pos = person_history[pid]["last_position"]
         move_dist = distance(center, prev_pos)
 
-        # Update movement
         if move_dist > MOVEMENT_THRESHOLD:
             person_history[pid]["last_move_time"] = current_time
             person_history[pid]["last_position"] = center
@@ -51,7 +48,6 @@ def analyse_behaviour(tracked_people):
         idle_time = current_time - person_history[pid]["last_move_time"]
         total_time = current_time - person_history[pid]["first_seen"]
 
-        #  IDLE DETECTION 
         if idle_time >= IDLE_TIME_THRESHOLD:
             alerts.append({
                 "type": "IDLE",
@@ -59,7 +55,6 @@ def analyse_behaviour(tracked_people):
                 "duration": round(idle_time, 2)
             })
 
-        #  SUSPICIOUS STANDING 
         if total_time >= SUSPICIOUS_TIME_THRESHOLD:
             alerts.append({
                 "type": "SUSPICIOUS_STANDING",
@@ -67,7 +62,7 @@ def analyse_behaviour(tracked_people):
                 "duration": round(total_time, 2)
             })
 
-    #  CROWD DETECTION 
+    # Crowd Detection
     close_count = 0
     for i in range(len(centers)):
         for j in range(i + 1, len(centers)):
