@@ -58,43 +58,32 @@ class RestrictedAreaChecker:
         result = cv2.pointPolygonTest(polygon_points, (float(x), float(y)), False)
         return result >= 0
     
-    def check_restricted_area(self, tracked_people):
-        """
-        Check if people are in restricted areas
-        
-        Args:
-            tracked_people: Dict of tracked people
-            
-        Returns:
-            list: List of alerts
-        """
-        alerts = []
-        
-        for area in self.restricted_areas:
-            area_name = area['name']
-            area_points = area['points']
-            max_allowed = area['max_people']
-            
-            people_in_area = []
-            
-            for person_id, person_data in tracked_people.items():
-                centroid = person_data['centroid']
-                
-                if self.point_in_polygon(centroid, area_points):
-                    people_in_area.append(person_id)
-            
-            if len(people_in_area) > max_allowed:
-                alert_key = (area_name, len(people_in_area))
-                
-                if alert_key not in self.alerts_logged:
-                    alerts.append({
-                        'person_id': people_in_area[0],
-                        'alert_type': 'RESTRICTED_AREA_VIOLATION',
-                        'details': f'{len(people_in_area)} people in {area_name}'
-                    })
-                    self.alerts_logged.add(alert_key)
-        
-        return alerts
+def check_restricted_area(self, tracked_people):
+    alerts = []
+
+    for area in self.restricted_areas:
+        area_name = area['name']
+        area_points = area['points']
+        max_allowed = area['max_people']
+
+        people_in_area = []
+
+        for person in tracked_people:
+            person_id = person['id']
+            centroid = person['center']   # ✅ correct key
+
+            if self.point_in_polygon(centroid, area_points):
+                people_in_area.append(person_id)
+
+        if len(people_in_area) > max_allowed:
+            alerts.append({
+                'person_id': people_in_area[0],
+                'type': 'RESTRICTED_AREA_BREACH',
+                'details': f'{len(people_in_area)} people in {area_name}'
+            })
+
+    return alerts
+
     
     def draw_areas(self, frame):
         """Draw restricted areas on frame"""
